@@ -1,6 +1,6 @@
 {
   "version": "1.0.1",
-  "url": "https://raw.githubusercontent.com/TU_USUARIO/HelpDeskManagerApp-Releases/main/HelpDeskManagerApp_Setup_1.0.1.exe",
-  "sha256": "ACA_VA_EL_HASH",
+  "url": "https://github.com/CDST-AR/HelpDeskManagerApp-Releases/releases/download/V1.0/HelpDeskManagerApp_Setup_1.0.0.exe",
+  "sha256": "ece68baab81aa5bd00b937f45966736fd85b8db4c568291cccf4997e4c2b6785",
   "notes": "Corrección de errores y mejoras."
 }
