@@ -1,6 +1,6 @@
 {
-  "version": "1.0.6",
-  "url": "https://github.com/CDST-AR/HelpDeskManagerApp-Releases/releases/download/V1.0/HelpDeskManagerApp_Setup_1.0.6.exe",
+  "version": "1.0.7",
+  "url": "https://github.com/CDST-AR/HelpDeskManagerApp-Releases/releases/download/V1.0/HelpDeskManagerApp_Setup_1.0.7.exe",
   "sha256": "ece68baab81aa5bd00b937f45966736fd85b8db4c568291cccf4997e4c2b6785",
   "notes": "Se modifica modulo de carga db3 a CSV"
 }
