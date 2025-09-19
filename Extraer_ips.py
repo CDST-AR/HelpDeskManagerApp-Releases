@@ -21,20 +21,27 @@ DEFAULT_OUTPUT_FILENAME = "direcciones de ip.txt"
 CANDIDATE_IP_COLUMNS = {"ip", "ip_address", "direccion_ip", "ip_addr"}
 
 
-def select_files_gui() -> List[str]:
-    """Permite elegir múltiples archivos de cualquier tipo (sin filtrar por extensión)."""
+def select_files_gui(parent=None) -> List[str]:
+    """Permite elegir múltiples archivos. Si no hay parent, crea un root temporal."""
     try:
         import tkinter as tk
         from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
+        tmp_root = None
+        if parent is None:
+            tmp_root = tk.Tk()
+            tmp_root.withdraw()
+            parent = tmp_root
         paths = filedialog.askopenfilenames(
+            parent=parent,
             title="Selecciona uno o más archivos (SQLite)",
             filetypes=[
                 ("Todos los archivos", "*"),
-                ("SQLite probables", ("*.db3", "*.db", "*.sqlite", "*.sqlite3", "*.db3.*", "*.sqlite.*", "*.sqlite3.*", "*.db.*")),
+                ("SQLite probables", ("*.db3", "*.db", "*.sqlite", "*.sqlite3",
+                                      "*.db3.*", "*.sqlite.*", "*.sqlite3.*", "*.db.*")),
             ]
         )
+        if tmp_root is not None:
+            tmp_root.destroy()
         return list(paths)
     except Exception:
         return []
@@ -142,23 +149,28 @@ def parse_ipv4(s: str) -> Optional[ipaddress.IPv4Address]:
 
 # ---------------------- Selección de ruta de guardado ----------------------
 
-def ask_save_path_gui(default_filename: str) -> str:
-    """Diálogo para elegir dónde guardar el resultado."""
+def ask_save_path_gui(default_filename: str, parent=None) -> str:
+    """Diálogo 'Guardar como…'. Si no hay parent, crea un root temporal."""
     try:
         import tkinter as tk
         from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
+        tmp_root = None
+        if parent is None:
+            tmp_root = tk.Tk()
+            tmp_root.withdraw()
+            parent = tmp_root
         path = filedialog.asksaveasfilename(
+            parent=parent,
             title="Guardar resultado como…",
             initialfile=default_filename,
             defaultextension=".txt",
             filetypes=[("Archivo de texto", "*.txt"), ("Todos los archivos", "*.*")],
         )
+        if tmp_root is not None:
+            tmp_root.destroy()
         return path or ""
     except Exception:
         return ""
-
 
 def ask_save_path_stdin(default_filename: str) -> str:
     """Fallback por consola para elegir la ruta de guardado."""
@@ -177,41 +189,43 @@ def ask_save_path_stdin(default_filename: str) -> str:
     return raw
 
 
-def get_save_path(default_filename: str = DEFAULT_OUTPUT_FILENAME) -> str:
-    path = ask_save_path_gui(default_filename)
-    if not path:
+def get_save_path(default_filename: str, *, parent=None, gui_only: bool) -> str:
+    path = ask_save_path_gui(default_filename, parent=parent)
+    if not path and not gui_only:
+        # solo si NO es GUI (modo consola), caemos al stdin
         path = ask_save_path_stdin(default_filename)
-    return path or os.path.join(os.getcwd(), default_filename)
+    return path
 
 
 # ---------------------- NUEVO: función reutilizable para la UI ----------------------
 
+# --- Función principal con parent y sin stdin (pensada para usarse desde tu app)
 def generate_ip_ranges(paths: Optional[List[str]] = None,
-                       save_path: Optional[str] = None) -> Tuple[str, int]:
+                       save_path: Optional[str] = None,
+                       *,
+                       parent=None,
+                       gui_only: bool = True) -> Tuple[str, int]:
     """
-    Ejecuta el flujo de extracción.
-    - paths: lista de rutas a archivos (si None, usa GUI/stdin como en main)
-    - save_path: ruta de guardado (si None, pregunta como en main)
-    Devuelve (out_path, cantidad_de_rangos).
-    Lanza ValueError/IOError en lugar de sys.exit.
+    Extrae IPv4 desde DBs SQLite, agrupa por /24 y guarda 'A.B.C.1-A.B.C.254' en una sola línea.
+    - parent: widget Tk para que los diálogos sean modales a tu ventana.
+    - gui_only=True: no usa input() como fallback; si el usuario cancela, retorna ("", 0).
+    Retorna (out_path, cantidad_de_redes). out_path="" => cancelado.
     """
-    # 1) Rutas: args -> GUI -> stdin
+    # 1) Selección de archivos
     if paths is None:
-        paths = [p for p in sys.argv[1:] if p.strip()]
+        paths = select_files_gui(parent=parent)
         if not paths:
-            paths = select_files_gui()
-        if not paths:
-            paths = ask_paths_stdin()
+            return "", 0  # cancelado en GUI
 
     files = [p for p in paths if is_file(p)]
     if not files:
-        raise ValueError("No se proporcionaron rutas de archivos válidas.")
+        return "", 0
 
     sqlite_files = [p for p in files if is_sqlite_file(p)]
     if not sqlite_files:
-        raise ValueError("Ninguno de los archivos dados es una base SQLite válida.")
+        return "", 0
 
-    # 2) Extraer solo IPv4 y agrupar por /24
+    # 2) Extraer /24
     prefixes_24: Set[str] = set()
     for p in sqlite_files:
         for raw in extract_ips_from_db(p):
@@ -221,27 +235,26 @@ def generate_ip_ranges(paths: Optional[List[str]] = None,
             a, b, c, _ = str(ip4).split(".")
             prefixes_24.add(f"{a}.{b}.{c}")
 
-    if not prefixes_24:
-        one_line = ""
-        count = 0
+    if prefixes_24:
+        ordered = sorted(prefixes_24, key=lambda pfx: ipaddress.IPv4Address(pfx + ".0"))
+        ranges_line = ",".join(f"{p}.1-{p}.254" for p in ordered)
+        count = len(ordered)
     else:
-        ordered_prefixes = sorted(
-            prefixes_24,
-            key=lambda pfx: ipaddress.IPv4Address(pfx + ".0")
-        )
-        ranges = [f"{p}.1-{p}.254" for p in ordered_prefixes]
-        one_line = ",".join(ranges)  # una sola línea, sin espacios
-        count = len(ranges)
+        ranges_line = ""
+        count = 0
 
     # 3) Guardar
-    out_path = save_path or get_save_path(DEFAULT_OUTPUT_FILENAME)
+    out_path = save_path or ask_save_path_gui(DEFAULT_OUTPUT_FILENAME, parent=parent)
+    if not out_path:
+        return "", 0  # canceló el guardado
     out_dir = os.path.dirname(out_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
-        f.write(one_line)  # no agregamos newline extra
+        f.write(ranges_line)
 
     return out_path, count
+
 
 
 # ---------------------- Modo script (consola) ----------------------
