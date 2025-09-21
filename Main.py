@@ -1,3 +1,4 @@
+import os, sys, json, tempfile
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 from datetime import datetime
@@ -8,10 +9,35 @@ from CsvEn0 import filtrar_falta_contador_csv
 import Estimador_manual
 from Clientes_suma import convertir_xls_a_csv_arcos
 from Extraer_ips import generate_ip_ranges
-import Updater  # si tu archivo se llama updater.py, podés: import updater as Updater
+
+# --- helpers nuevos (debajo de imports) ---
+def resource_path(rel):
+    """
+    Devuelve la ruta absoluta a un recurso empacado (PyInstaller ONEDIR).
+    """
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, rel)
+
+def read_launcher_version():
+    """
+    Intenta leer la versión activa desde %LOCALAPPDATA%\HelpDeskManagerApp\current.json.
+    """
+    try:
+        root = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+        p = os.path.join(root, "HelpDeskManagerApp", "current.json")
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        v = str(data.get("version", "")).strip()
+        return v if v else None
+    except Exception:
+        return None
+
 
 APP_NAME = "HelpDeskManagerApp"
-APP_VERSION = "v1.1.3"
+APP_VERSION = read_launcher_version() or "v1.1.6"  # fallback al hardcodeado
 
 # Paleta (centralizada)
 ORANGE = "#FF7F00"
@@ -36,19 +62,20 @@ class HelpDeskManagerApp(tk.Tk):
         self._build_notebook()
         self._build_statusbar()
         self._build_menu()
-        self.after(300, lambda: Updater.show_post_update_if_any(self))
+        
 
         # Atajos
         self.bind_all("<Control-q>", lambda e: self.quit())
         self.bind_all("<F1>", lambda e: self._about())
 
-        # Chequeo silencioso 2s después de abrir
-        self.after(2000, lambda: Updater.auto_check(self, APP_VERSION))
+        
 
+                # --- en __init__, donde seteás el ícono ---
         try:
-            self.iconbitmap("ico.ico")
+            self.iconbitmap(resource_path("ico.ico"))
         except Exception:
             pass
+
 
     # ---------- UI builders ----------
     def _setup_style(self):
@@ -123,8 +150,7 @@ class HelpDeskManagerApp(tk.Tk):
 
         ayuda = tk.Menu(menubar, tearoff=0)
         ayuda.add_command(label="Acerca de (F1)", command=self._about)
-        ayuda.add_command(label="Buscar actualizaciones…",
-                          command=lambda: Updater.check_for_updates(self, app_version=APP_VERSION))
+        
         menubar.add_cascade(label="Ayuda", menu=ayuda)
 
     # ---------- Contenido de pestañas ----------
@@ -169,7 +195,7 @@ class HelpDeskManagerApp(tk.Tk):
 
         ttk.Button(card_net, text="txt a Direc. IP",
                 style="Big.TButton", command=self._generar_ips)\
-    .grid(row=1, column=0, sticky="ew", padx=PAD_IN, pady=PAD_IN)
+        .grid(row=1, column=0, sticky="ew", padx=PAD_IN, pady=PAD_IN)
 
 
     # ---------- Utilidad para acciones con status & errores ----------
@@ -316,5 +342,7 @@ class HelpDeskManagerApp(tk.Tk):
 
 if __name__ == "__main__":
     app = HelpDeskManagerApp()
+    
+    
     
     app.mainloop()

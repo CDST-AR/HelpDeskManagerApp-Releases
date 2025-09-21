@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
 block_cipher = None
 
 # Excluir librerías pesadas/no usadas (ajustá si hace falta)
@@ -17,23 +19,31 @@ common_excludes = [
     'numpy.tests','pandas.tests','matplotlib.tests'
 ]
 
+# Para asegurar que encuentre tus módulos locales
+pathex = [os.path.abspath('.')]
+
 # =========================
 # App principal (Main.py)
 # =========================
 a_app = Analysis(
     ['Main.py'],
-    pathex=[],
+    pathex=pathex,
     binaries=[],
-    datas=[('ico.ico', '.')],
+    datas=[('ico.ico', '.')],   # agrega otros recursos si usás (templates, etc.)
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=common_excludes,
     noarchive=False,
-    optimize=0,  # ← mantener 0 si usás numpy/pandas (docstrings)
+    optimize=0,  # mantener 0 si usás numpy/pandas
 )
-pyz_app = PYZ(a_app.pure)
+
+pyz_app = PYZ(
+    a_app.pure,
+    a_app.zipped_data,
+    cipher=block_cipher,
+)
 
 exe_app = EXE(
     pyz_app,
@@ -44,7 +54,7 @@ exe_app = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,                  # ← evita fallos si no tenés UPX
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -59,18 +69,23 @@ exe_app = EXE(
 # =========================================
 a_upd = Analysis(
     ['update_runner.py'],
-    pathex=[],
+    pathex=pathex,
     binaries=[],
-    datas=[('ico.ico', '.')],  # mismo ícono para la ventana del runner
+    datas=[('ico.ico', '.')],   # mismo ícono para la ventana del runner
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=common_excludes,
     noarchive=False,
-    optimize=0,  # coherente con el principal
+    optimize=0,
 )
-pyz_upd = PYZ(a_upd.pure)
+
+pyz_upd = PYZ(
+    a_upd.pure,
+    a_upd.zipped_data,
+    cipher=block_cipher,
+)
 
 exe_upd = EXE(
     pyz_upd,
@@ -81,7 +96,7 @@ exe_upd = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,                  # ← idem
     console=False,              # ventana Tkinter (sin consola)
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -96,13 +111,15 @@ exe_upd = EXE(
 # =========================
 coll = COLLECT(
     exe_app,
-    exe_upd,            # incluir runner en la misma salida
+    exe_upd,                    # incluir runner en la misma salida
     a_app.binaries,
     a_upd.binaries,
+    a_app.zipfiles,             # ← importante
+    a_upd.zipfiles,             # ← importante
     a_app.datas,
     a_upd.datas,
     strip=False,
-    upx=True,
+    upx=False,                  # por coherencia
     upx_exclude=[],
     name='HelpDeskManagerApp',
 )

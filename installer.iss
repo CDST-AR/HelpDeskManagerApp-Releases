@@ -1,6 +1,5 @@
 ; =========================
 ; installer.iss (Inno Setup)
-; Compilar: Build > Compile
 ; =========================
 
 ; ---- Datos de tu app ----
@@ -16,8 +15,14 @@
 #define MyAppDir       BasePath + "dist\HelpDeskManagerApp"   ; carpeta que genera PyInstaller (ONEDIR)
 #define MyIcon         BasePath + "ico.ico"                   ; ícono junto al .iss
 
-; (opcional) mostrar la ruta resuelta para depurar
-#pragma message "Setup icon path: " + MyIcon
+; Verificaciones de build
+#if !DirExists(MyAppDir)
+  #error "No existe dist\HelpDeskManagerApp. Compilá con PyInstaller antes."
+#endif
+
+#if !FileExists(MyIcon)
+  #pragma warning "ico.ico no encontrado; se usará el ícono del EXE."
+#endif
 
 ; ---- GUID único (usar llaves dobles) ----
 #define MyAppId        "{{3D57979A-7152-4B96-B5D8-9F83607E28D1}}"
@@ -29,22 +34,21 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
+OutputDir=Output
 OutputBaseFilename={#MyAppName}_Setup_{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
 DisableDirPage=no
 DisableProgramGroupPage=no
-; *** IMPORTANTE: comillas para rutas con espacios ***
-SetupIconFile="{#MyIcon}"
 UninstallDisplayIcon={app}\{#MyAppExeName}
-; PrivilegesRequired=lowest
-
-; 🔧 Recomendados para upgrades
 UsePreviousTasks=yes
 CloseApplications=yes
 RestartApplications=yes
 AppMutex=HelpDeskManagerApp
+#if FileExists(MyIcon)
+SetupIconFile={#MyIcon}
+#endif
 
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
@@ -62,11 +66,21 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Files]
 Source: "{#MyAppDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#if FileExists(MyIcon)
 Source: "{#MyIcon}";     DestDir: "{app}"; Flags: ignoreversion
+#endif
 
+; ----- ICONOS -----
+; Si existe ico.ico, los accesos directos lo usan; si no, usan el icono del EXE
+#if FileExists(MyIcon)
 [Icons]
 Name: "{group}\{#MyAppName}";         Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\ico.ico"; WorkingDir: "{app}"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\ico.ico"; Tasks: desktopicon; WorkingDir: "{app}"
+#else
+[Icons]
+Name: "{group}\{#MyAppName}";         Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; WorkingDir: "{app}"
+#endif
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Iniciar {#MyAppName}"; Flags: nowait postinstall skipifsilent
